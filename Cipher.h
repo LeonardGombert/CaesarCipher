@@ -1,71 +1,77 @@
 #pragma once
 #include <iostream>
+#include <vector>
+#include <string.h>
 
 template<typename T>
 struct CipherDisk {
-	const T* cipher_keys;
+	const T* keys;
 	int start_pointer = 0;
-	const int end_pointer;
 };
 
-// O for outside
-// I for Inside
+// O for outside (disk)
+// I for Inside (disk)
 template<typename O, typename I>
 struct Cipher {
 public:
 	Cipher(int arraySize, O* outsideRing, I* insideRing) :
-		cipher_outside({ outsideRing, 0, arraySize - 1 }),
-		cipher_inside({ insideRing, 0, arraySize - 1 })
-		// elements are initialized with initializer lists
+		cipher_outside({ outsideRing, 0 }),
+		cipher_inside({ insideRing, 0 }),
+		cipher_size(arraySize - 1)
 	{ };
 
-	void EncryptCipher(I encryptionKey);
-	void PassMessage(const O* message);
+	void SetCipherShift(const I* encryptionKey);
+	void EncryptMessage(const O* message);
+
+	void GetMessageSignature(const O* plaintextMessage);
+	void EncryptMessageFromSignature(int messageLength);
 
 public:
 	CipherDisk<O> cipher_outside;
 	CipherDisk<I> cipher_inside;
+	const size_t cipher_size;
 
 private:
-	int* messageSequence;
+	std::vector<int> messageSequence;
+	std::vector<char> encryptedMessage;
 };
 
 template<typename O, typename I>
-inline void Cipher<O, I>::EncryptCipher(I encryptionKey) {
-	// what does O correspond to ? 
-	// look at  
-	size_t length = cipher_inside.end_pointer;
-	for (size_t i = 0; i < length; i++) {
-		if (encryptionKey == cipher_inside.cipher_keys[i]) {
+inline void Cipher<O, I>::SetCipherShift(const I* encryptionKey) {
+	for (size_t i = 0; i < cipher_size; i++) {
+		if (cipher_inside.keys[i] == *encryptionKey) {
 			cipher_inside.start_pointer = i;
-			std::cout << "The inside ciper starting key index is " << i << ", which corresponds to " << cipher_inside.cipher_keys[i] << std::endl;
+			// offset the "start" of the inside cipher
 		}
 	}
 }
 
 template<typename O, typename I>
-inline void Cipher<O, I>::PassMessage(const O* message) {
-	size_t length = cipher_outside.end_pointer;
-	size_t messageLength = sizeof(message) / sizeof(message[0]);
-	
-	messageSequence = new int[messageLength];
+inline void Cipher<O, I>::EncryptMessage(const O* plaintextMessage) {
+	GetMessageSignature(plaintextMessage);
+	EncryptMessageFromSignature(std::strlen(plaintextMessage));
+}
 
-	for (size_t i = 0, j = 0; i < length;) {
-		if (cipher_outside.cipher_keys[i] == message[j]) {
-			// found matching element. Store the index, increment and restart
-			messageSequence[j] = i;
+// construct a "signature" made of character's index on the outside cipher
+template<typename O, typename I>
+inline void Cipher<O, I>::GetMessageSignature(const O* plaintextMessage) {
+	for (size_t i = 0, j = 0; i < cipher_size;) {
+		if (cipher_outside.keys[i] == plaintextMessage[j]) {
+			messageSequence.push_back(i); // store the index
+			j++; // increment the plaintext's evaluated char
 			i = 0;
-			j++;
 		}
 		else {
-			i++;
+			//i++; // TODO : don't think this works the way I think it does
 		}
 	}
+}
 
-	std::cout << "The encrypted message is : ";
-	for (size_t i = 0; i < messageLength; i++)
-	{
-		std::cout << cipher_inside.cipher_keys[cipher_inside.start_pointer + messageSequence[i]];
+// using the signature, encrypt the message by following the indexes and offsetting them
+template<typename O, typename I>
+inline void Cipher<O, I>::EncryptMessageFromSignature(int messageLength) {
+	for (size_t i = 0; i < messageLength; i++) {
+		encryptedMessage.push_back(cipher_inside.keys[cipher_inside.start_pointer + messageSequence[i]]);
+		std::cout << encryptedMessage[i];
 	}
-	std::cout << '\n';
 }
